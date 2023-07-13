@@ -191,10 +191,7 @@ static IMP WKOriginalImp;
     BOOL statusBarOverlaysWebView = statusBarPlugin.statusBarOverlaysWebView;
 
     // if the webview is below the status bar, offset and shrink its frame
-    if (statusBarOverlaysWebView) {
-        NSLog(@"La propriété statusBarOverlaysWebView est true");
-    } else {
-        NSLog(@"La propriété statusBarOverlaysWebView est false");
+    if (!statusBarOverlaysWebView) {
         CGRect full, remainder;
         CGRectDivide(screen, &remainder, &full, statusBar.size.height, CGRectMinYEdge);
         screen = full;

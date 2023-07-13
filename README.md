@@ -1,5 +1,7 @@
 # cordova-plugin-keyboard
 
+#### Fork version that resize the webview when "statusBarOverlaysWebView" is updated
+
 > This plugin provides the `Keyboard` object which has some functions to customize and control the keyboard. It also supports the __HideKeyboardFormAccessoryBar__ (boolean) and __KeyboardShrinksView__ (boolean) preferences in config.xml.
 
 This plugin has only been tested in Cordova 3.2 or greater, and its use in previous Cordova versions is not recommended (potential conflict with keyboard customization code present in the core in previous Cordova versions). 
