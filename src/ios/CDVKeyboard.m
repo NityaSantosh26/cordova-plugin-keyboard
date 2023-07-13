@@ -20,6 +20,10 @@
 #import "CDVKeyboard.h"
 #import <Cordova/CDVAvailability.h>
 #import <objc/runtime.h>
+#import <Cordova/CDVViewController.h>
+#import "CDVStatusBar.h"
+
+
 
 #ifndef __CORDOVA_3_2_0
 #warning "The keyboard plugin is only supported in Cordova 3.2 or greater, it may not work properly in an older version. If you do use this plugin in an older version, make sure the HideKeyboardFormAccessoryBar and KeyboardShrinksView preference values are false."
@@ -46,61 +50,61 @@
 
     setting = @"HideKeyboardFormAccessoryBar";
     if ([self settingForKey:setting]) {
-        self.hideFormAccessoryBar = [(NSNumber*)[self settingForKey:setting] boolValue];
+      self.hideFormAccessoryBar = [(NSNumber*)[self settingForKey:setting] boolValue];
     }
 
     setting = @"KeyboardShrinksView";
     if ([self settingForKey:setting]) {
-        self.shrinkView = [(NSNumber*)[self settingForKey:setting] boolValue];
+      self.shrinkView = [(NSNumber*)[self settingForKey:setting] boolValue];
     }
 
     setting = @"DisableScrollingWhenKeyboardShrinksView";
     if ([self settingForKey:setting]) {
-        self.disableScrollingInShrinkView = [(NSNumber*)[self settingForKey:setting] boolValue];
+      self.disableScrollingInShrinkView = [(NSNumber*)[self settingForKey:setting] boolValue];
     }
 
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
     __weak CDVKeyboard* weakSelf = self;
 
     _keyboardShowObserver = [nc addObserverForName:UIKeyboardDidShowNotification
-                                            object:nil
-                                             queue:[NSOperationQueue mainQueue]
-                                        usingBlock:^(NSNotification* notification) {
-            [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnShow();"];
-                                        }];
+      object:nil
+      queue:[NSOperationQueue mainQueue]
+      usingBlock:^(NSNotification* notification) {
+        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnShow();"];
+      }];
     _keyboardHideObserver = [nc addObserverForName:UIKeyboardDidHideNotification
-                                            object:nil
-                                             queue:[NSOperationQueue mainQueue]
-                                        usingBlock:^(NSNotification* notification) {
-            [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHide();"];
-                                        }];
+      object:nil
+      queue:[NSOperationQueue mainQueue]
+      usingBlock:^(NSNotification* notification) {
+        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHide();"];
+      }];
 
     _keyboardWillShowObserver = [nc addObserverForName:UIKeyboardWillShowNotification
-                                                object:nil
-                                                 queue:[NSOperationQueue mainQueue]
-                                            usingBlock:^(NSNotification* notification) {
-            [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnShowing();"];
-            weakSelf.keyboardIsVisible = YES;
-                                            }];
+      object:nil
+      queue:[NSOperationQueue mainQueue]
+      usingBlock:^(NSNotification* notification) {
+        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnShowing();"];
+        weakSelf.keyboardIsVisible = YES;
+      }];
     _keyboardWillHideObserver = [nc addObserverForName:UIKeyboardWillHideNotification
-                                                object:nil
-                                                 queue:[NSOperationQueue mainQueue]
-                                            usingBlock:^(NSNotification* notification) {
-            [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHiding();"];
-            weakSelf.keyboardIsVisible = NO;
-                                            }];
+      object:nil
+      queue:[NSOperationQueue mainQueue]
+      usingBlock:^(NSNotification* notification) {
+        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHiding();"];
+        weakSelf.keyboardIsVisible = NO;
+      }];
 
     _shrinkViewKeyboardWillChangeFrameObserver = [nc addObserverForName:UIKeyboardWillChangeFrameNotification
-                                                                 object:nil
-                                                                  queue:[NSOperationQueue mainQueue]
-                                                             usingBlock:^(NSNotification* notification) {
-                                                                 [weakSelf performSelector:@selector(shrinkViewKeyboardWillChangeFrame:) withObject:notification afterDelay:0];
-                                                                 CGRect screen = [[UIScreen mainScreen] bounds];
-                                                                 CGRect keyboard = ((NSValue*)notification.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
-                                                                 CGRect intersection = CGRectIntersection(screen, keyboard);
-                                                                 CGFloat height = MIN(intersection.size.width, intersection.size.height);
-                                                                 [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
-                                                             }];
+     object:nil
+     queue:[NSOperationQueue mainQueue]
+     usingBlock:^(NSNotification* notification) {
+       [weakSelf performSelector:@selector(shrinkViewKeyboardWillChangeFrame:) withObject:notification afterDelay:0];
+       CGRect screen = [[UIScreen mainScreen] bounds];
+       CGRect keyboard = ((NSValue*)notification.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
+       CGRect intersection = CGRectIntersection(screen, keyboard);
+       CGFloat height = MIN(intersection.size.width, intersection.size.height);
+       [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
+     }];
 
     self.webView.scrollView.delegate = self;
 }
@@ -173,7 +177,7 @@ static IMP WKOriginalImp;
 
     self.webView.scrollView.scrollEnabled = YES;
 
-    CGRect screen = [[[UIApplication sharedApplication] keyWindow] frame];
+    CGRect screen = [[UIScreen mainScreen] bounds];
     CGRect statusBar = [[UIApplication sharedApplication] statusBarFrame];
     CGRect keyboard = ((NSValue*)notif.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
 
@@ -181,9 +185,16 @@ static IMP WKOriginalImp;
     keyboard = [self.webView convertRect:keyboard fromView:nil];
     statusBar = [self.webView convertRect:statusBar fromView:nil];
     screen = [self.webView convertRect:screen fromView:nil];
+    
+    CDVViewController* vc = (CDVViewController*)self.viewController;
+    CDVStatusBar *statusBarPlugin = [vc getCommandInstance:@"StatusBar"];
+    BOOL statusBarOverlaysWebView = statusBarPlugin.statusBarOverlaysWebView;
 
     // if the webview is below the status bar, offset and shrink its frame
-    if ([self settingForKey:@"StatusBarOverlaysWebView"] != nil && ![[self settingForKey:@"StatusBarOverlaysWebView"] boolValue]) {
+    if (statusBarOverlaysWebView) {
+        NSLog(@"La propriété statusBarOverlaysWebView est true");
+    } else {
+        NSLog(@"La propriété statusBarOverlaysWebView est false");
         CGRect full, remainder;
         CGRectDivide(screen, &remainder, &full, statusBar.size.height, CGRectMinYEdge);
         screen = full;
