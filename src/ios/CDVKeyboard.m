@@ -185,7 +185,7 @@ static IMP WKOriginalImp;
     keyboard = [self.webView convertRect:keyboard fromView:nil];
     statusBar = [self.webView convertRect:statusBar fromView:nil];
     screen = [self.webView convertRect:screen fromView:nil];
-    
+
     CDVViewController* vc = (CDVViewController*)self.viewController;
     CDVStatusBar *statusBarPlugin = [vc getCommandInstance:@"StatusBar"];
     BOOL statusBarOverlaysWebView = statusBarPlugin.statusBarOverlaysWebView;
@@ -203,8 +203,12 @@ static IMP WKOriginalImp;
     // The webview should always be able to return to full size
     CGRect keyboardIntersection = CGRectIntersection(screen, keyboard);
     if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible) {
-        screen.size.height -= keyboardIntersection.size.height;
+        CGRect newFrame = self.webView.frame;
+        newFrame.size.height -= keyboardIntersection.size.height;
+        self.webView.frame = newFrame;
         self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView;
+    } else {
+        self.webView.frame = [self.webView.superview convertRect:screen fromView:self.webView];
     }
 
     // A view's frame is in its superview's coordinate system so we need to convert again
@@ -236,7 +240,7 @@ static IMP WKOriginalImp;
 
         self.shrinkView = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.shrinkView]
                                 callbackId:command.callbackId];
 }
@@ -251,7 +255,7 @@ static IMP WKOriginalImp;
 
         self.disableScrollingInShrinkView = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.disableScrollingInShrinkView]
                                 callbackId:command.callbackId];
 }
@@ -263,10 +267,10 @@ static IMP WKOriginalImp;
         if (!([value isKindOfClass:[NSNumber class]])) {
             value = [NSNumber numberWithBool:NO];
         }
-        
+
         self.hideFormAccessoryBar = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.hideFormAccessoryBar]
                                 callbackId:command.callbackId];
 }
