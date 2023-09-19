@@ -185,7 +185,7 @@ static IMP WKOriginalImp;
     keyboard = [self.webView convertRect:keyboard fromView:nil];
     statusBar = [self.webView convertRect:statusBar fromView:nil];
     screen = [self.webView convertRect:screen fromView:nil];
-    
+
     CDVViewController* vc = (CDVViewController*)self.viewController;
     CDVStatusBar *statusBarPlugin = [vc getCommandInstance:@"StatusBar"];
     BOOL statusBarOverlaysWebView = statusBarPlugin.statusBarOverlaysWebView;
@@ -205,6 +205,21 @@ static IMP WKOriginalImp;
     if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible) {
         screen.size.height -= keyboardIntersection.size.height;
         self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView;
+
+        // Custom implementation to have the header and footer sticky
+        UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
+        CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
+        [UIView animateWithDuration:animationDuration animations:^{
+            self.webView.scrollView.contentInset = contentInsets;
+            self.webView.scrollView.scrollIndicatorInsets = contentInsets;
+        }];
+    } else {
+        UIEdgeInsets contentInsets = UIEdgeInsetsZero;
+        CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
+        [UIView animateWithDuration:animationDuration animations:^{
+            self.webView.scrollView.contentInset = contentInsets;
+            self.webView.scrollView.scrollIndicatorInsets = contentInsets;
+        }];
     }
 
     // A view's frame is in its superview's coordinate system so we need to convert again
@@ -236,7 +251,7 @@ static IMP WKOriginalImp;
 
         self.shrinkView = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.shrinkView]
                                 callbackId:command.callbackId];
 }
@@ -251,7 +266,7 @@ static IMP WKOriginalImp;
 
         self.disableScrollingInShrinkView = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.disableScrollingInShrinkView]
                                 callbackId:command.callbackId];
 }
@@ -263,10 +278,10 @@ static IMP WKOriginalImp;
         if (!([value isKindOfClass:[NSNumber class]])) {
             value = [NSNumber numberWithBool:NO];
         }
-        
+
         self.hideFormAccessoryBar = [value boolValue];
     }
-    
+
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:self.hideFormAccessoryBar]
                                 callbackId:command.callbackId];
 }
