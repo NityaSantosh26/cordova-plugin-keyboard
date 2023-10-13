@@ -33,6 +33,12 @@
 
 @property (nonatomic, readwrite, assign) BOOL keyboardIsVisible;
 
+// Add a property to store the previous keyboard frame
+@property (nonatomic, readwrite, assign) CGRect previousKeyboardFrame;
+
+// Gets the device iOS version
+@property (nonatomic, readwrite, assign) NSString *deviceVersion;
+
 @end
 
 @implementation CDVKeyboard
@@ -47,6 +53,9 @@
 - (void)pluginInitialize
 {
     NSString* setting = nil;
+
+    self.deviceVersion = [[UIDevice currentDevice] systemVersion];
+    NSLog(@"Device Version: %@", self.deviceVersion);
 
     setting = @"HideKeyboardFormAccessoryBar";
     if ([self settingForKey:setting]) {
@@ -197,25 +206,45 @@ static IMP WKOriginalImp;
         screen = full;
     }
 
+    // Define a threshold for what constitutes a "significant" change in keyboard height
+    CGFloat threshold = 20.0; // Adjust this value as needed
+    bool keyboardSwitch = false;
+
+    // Check if the keyboard frame has changed significantly (indicating a keyboard type change)
+    if (!CGRectEqualToRect(self.previousKeyboardFrame, CGRectZero) && fabs(CGRectGetHeight(self.previousKeyboardFrame) - CGRectGetHeight(keyboard)) > threshold) {
+        keyboardSwitch = true;
+    }
+
+    self.previousKeyboardFrame = keyboard;
+
+    CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
+
     // Get the intersection of the keyboard and screen and move the webview above it
     // Note: we check for _shrinkView at this point instead of the beginning of the method to handle
     // the case where the user disabled shrinkView while the keyboard is showing.
     // The webview should always be able to return to full size
     CGRect keyboardIntersection = CGRectIntersection(screen, keyboard);
-    if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible) {
+    if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible && !keyboardSwitch) {
+        self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView; // Order intentionally swapped.
         screen.size.height -= keyboardIntersection.size.height;
-        self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView;
 
-        // Custom implementation to have the header and footer sticky
-        UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
-        CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
+        // Change the content size as it creates a blank space in iOS 15 devices (works for all versions)
+        CGSize revisedSize = CGSizeMake(self.webView.scrollView.frame.size.width, self.webView.scrollView.frame.size.height - keyboard.size.height);
         [UIView animateWithDuration:animationDuration animations:^{
-            self.webView.scrollView.contentInset = contentInsets;
-            self.webView.scrollView.scrollIndicatorInsets = contentInsets;
+            self.webView.scrollView.contentSize = revisedSize;
         }];
+
+        // Fixes the iOS 15.5 black blank space above the keyboard and resets the webview correctly.
+        if(![self.deviceVersion isEqual:@"15.5"]) {
+            // Custom implementation to have the header and footer sticky
+            UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
+            [UIView animateWithDuration:animationDuration animations:^{
+                self.webView.scrollView.contentInset = contentInsets;
+                self.webView.scrollView.scrollIndicatorInsets = contentInsets;
+            }];
+        }
     } else {
         UIEdgeInsets contentInsets = UIEdgeInsetsZero;
-        CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
         [UIView animateWithDuration:animationDuration animations:^{
             self.webView.scrollView.contentInset = contentInsets;
             self.webView.scrollView.scrollIndicatorInsets = contentInsets;
