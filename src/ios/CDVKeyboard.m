@@ -117,8 +117,9 @@
             CGRect intersection = CGRectIntersection(screen, keyboard);
             CGFloat height = MIN(intersection.size.width, intersection.size.height);
             [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
+            // custom javascript to check if the focused input field is bottomsheet, if yes then it does not calculates screen height
             if ([self.webView isKindOfClass:NSClassFromString(@"UIWebView")]) {
-                NSString *js = @"function isFocusedInputInBottomSheet() { var focused = document.activeElement; var secondChild = document.body.children[6]; while (focused) { if (focused === secondChild) { return true; } focused = focused.parentElement; } return false; } isFocusedInputInBottomSheet();";
+                NSString *js = @"function isFocusedInputInBottomSheet() { var focused = document.activeElement; var body = document.body; while (focused) { if (focused.parentElement === body && focused.tagName === 'DIV') { return true; } focused = focused.parentElement; } return false; } isFocusedInputInBottomSheet();";
                 NSString *result = [(UIWebView *)self.webView stringByEvaluatingJavaScriptFromString:js];
                 self.isInputInBottomSheet = [result boolValue];
             }
