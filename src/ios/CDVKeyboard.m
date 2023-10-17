@@ -39,6 +39,9 @@
 // Gets the device iOS version
 @property (nonatomic, readwrite, assign) NSString *deviceVersion;
 
+// checks if the focused element is bottomsheet input fields or not
+@property (nonatomic, readwrite, assign) BOOL isInputInBottomSheet;
+
 @end
 
 @implementation CDVKeyboard
@@ -107,13 +110,19 @@
      object:nil
      queue:[NSOperationQueue mainQueue]
      usingBlock:^(NSNotification* notification) {
-       [weakSelf performSelector:@selector(shrinkViewKeyboardWillChangeFrame:) withObject:notification afterDelay:0];
-       CGRect screen = [[UIScreen mainScreen] bounds];
-       CGRect keyboard = ((NSValue*)notification.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
-       CGRect intersection = CGRectIntersection(screen, keyboard);
-       CGFloat height = MIN(intersection.size.width, intersection.size.height);
-       [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
-     }];
+        if (self.shrinkView) {
+            [weakSelf performSelector:@selector(shrinkViewKeyboardWillChangeFrame:) withObject:notification afterDelay:0];
+            CGRect screen = [[UIScreen mainScreen] bounds];
+            CGRect keyboard = ((NSValue*)notification.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
+            CGRect intersection = CGRectIntersection(screen, keyboard);
+            CGFloat height = MIN(intersection.size.width, intersection.size.height);
+            [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
+            if ([self.webView isKindOfClass:NSClassFromString(@"UIWebView")]) {
+                NSString *js = @"function isFocusedInputInBottomSheet() { var focused = document.activeElement; var secondChild = document.body.children[6]; while (focused) { if (focused === secondChild) { return true; } focused = focused.parentElement; } return false; } isFocusedInputInBottomSheet();";
+                self.isInputInBottomSheet = [result boolValue];
+            }
+        }
+    }];
 
     self.webView.scrollView.delegate = self;
 }
@@ -211,28 +220,29 @@ static IMP WKOriginalImp;
     bool keyboardSwitch = false;
 
     // Check if the keyboard frame has changed significantly (indicating a keyboard type change)
-    if (!CGRectEqualToRect(self.previousKeyboardFrame, CGRectZero) && fabs(CGRectGetHeight(self.previousKeyboardFrame) - CGRectGetHeight(keyboard)) > threshold) {
+    if (!CGRectIsNull(self.previousKeyboardFrame) && !CGRectEqualToRect(self.previousKeyboardFrame, CGRectZero) && fabs(CGRectGetHeight(self.previousKeyboardFrame) - CGRectGetHeight(keyboard)) > threshold) {
         keyboardSwitch = true;
     }
 
     self.previousKeyboardFrame = keyboard;
 
     CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
-
     // Get the intersection of the keyboard and screen and move the webview above it
     // Note: we check for _shrinkView at this point instead of the beginning of the method to handle
     // the case where the user disabled shrinkView while the keyboard is showing.
     // The webview should always be able to return to full size
     CGRect keyboardIntersection = CGRectIntersection(screen, keyboard);
     if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible && !keyboardSwitch) {
-        self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView; // Order intentionally swapped.
-        screen.size.height -= keyboardIntersection.size.height;
+        if(!self.isInputInBottomSheet) {
+            self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView; // Order intentionally swapped.
+            screen.size.height -= keyboardIntersection.size.height;
 
-        // Change the content size as it creates a blank space in iOS 15 devices (works for all versions)
-        CGSize revisedSize = CGSizeMake(self.webView.scrollView.frame.size.width, self.webView.scrollView.frame.size.height - keyboard.size.height);
-        [UIView animateWithDuration:animationDuration animations:^{
-            self.webView.scrollView.contentSize = revisedSize;
-        }];
+            // Change the content size as it creates a blank space in iOS 15 devices (works for all versions)
+            CGSize revisedSize = CGSizeMake(self.webView.scrollView.frame.size.width, self.webView.scrollView.frame.size.height - keyboard.size.height);
+            [UIView animateWithDuration:animationDuration animations:^{
+                self.webView.scrollView.contentSize = revisedSize;
+            }];
+        }
 
         // Fixes the iOS 15.5 black blank space above the keyboard and resets the webview correctly.
         if(![self.deviceVersion isEqual:@"15.5"]) {
