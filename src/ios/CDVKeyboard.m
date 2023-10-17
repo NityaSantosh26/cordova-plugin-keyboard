@@ -119,6 +119,7 @@
             [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
             if ([self.webView isKindOfClass:NSClassFromString(@"UIWebView")]) {
                 NSString *js = @"function isFocusedInputInBottomSheet() { var focused = document.activeElement; var secondChild = document.body.children[6]; while (focused) { if (focused === secondChild) { return true; } focused = focused.parentElement; } return false; } isFocusedInputInBottomSheet();";
+                NSString *result = [(UIWebView *)self.webView stringByEvaluatingJavaScriptFromString:js];
                 self.isInputInBottomSheet = [result boolValue];
             }
         }
