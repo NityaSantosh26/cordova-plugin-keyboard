@@ -78,18 +78,15 @@
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
     __weak CDVKeyboard* weakSelf = self;
 
-    _keyboardShowObserver = [nc addObserverForName:UIKeyboardDidShowNotification
-      object:nil
-      queue:[NSOperationQueue mainQueue]
-      usingBlock:^(NSNotification* notification) {
-        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnShow();"];
-      }];
-    _keyboardHideObserver = [nc addObserverForName:UIKeyboardDidHideNotification
-      object:nil
-      queue:[NSOperationQueue mainQueue]
-      usingBlock:^(NSNotification* notification) {
-        [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHide();"];
-      }];
+    // observer to check the app state, this gets triggered when app is moved to background or inactive
+    [nc addObserver:self selector:@selector(appWillResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
+
+    _keyboardHideObserver = [nc addObserverForName:UIKeyboardDidHideNotification object:nil
+        queue:[NSOperationQueue mainQueue]
+        usingBlock:^(NSNotification* notification) {
+            [weakSelf.commandDelegate evalJs:@"Keyboard.fireOnHide();"];
+            weakSelf.previousKeyboardFrame = CGRectZero;
+        }];
 
     _keyboardWillShowObserver = [nc addObserverForName:UIKeyboardWillShowNotification
       object:nil
@@ -112,11 +109,7 @@
      usingBlock:^(NSNotification* notification) {
         if (self.shrinkView) {
             [weakSelf performSelector:@selector(shrinkViewKeyboardWillChangeFrame:) withObject:notification afterDelay:0];
-            CGRect screen = [[UIScreen mainScreen] bounds];
-            CGRect keyboard = ((NSValue*)notification.userInfo[@"UIKeyboardFrameEndUserInfoKey"]).CGRectValue;
-            CGRect intersection = CGRectIntersection(screen, keyboard);
-            CGFloat height = MIN(intersection.size.width, intersection.size.height);
-            [weakSelf.commandDelegate evalJs: [NSString stringWithFormat:@"cordova.fireWindowEvent('keyboardHeightWillChange', { 'keyboardHeight': %f })", height]];
+
             // custom javascript to check if the focused input field is bottomsheet, if yes then it does not calculates screen height
             if ([self.webView isKindOfClass:NSClassFromString(@"UIWebView")]) {
                 NSString *js = @"function isFocusedInputInBottomSheet() { var focused = document.activeElement; var body = document.body; while (focused) { if (focused.parentElement === body && focused.tagName === 'DIV') { return true; } focused = focused.parentElement; } return false; } isFocusedInputInBottomSheet();";
@@ -181,6 +174,11 @@ static IMP WKOriginalImp;
     _shrinkView = shrinkView;
 }
 
+- (void)appWillResignActive:(NSNotification *)notification {
+    // Dismiss the keyboard
+    [self.webView endEditing:YES];
+}
+
 - (void)shrinkViewKeyboardWillChangeFrame:(NSNotification*)notif
 {
     // No-op on iOS 7.0.  It already resizes webview by default, and this plugin is causing layout issues
@@ -226,7 +224,9 @@ static IMP WKOriginalImp;
         keyboardSwitch = true;
     }
 
-    self.previousKeyboardFrame = keyboard;
+    if(!CGRectEqualToRect(self.previousKeyboardFrame, keyboard)) {
+        self.previousKeyboardFrame = keyboard;
+    }
 
     CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
     // Get the intersection of the keyboard and screen and move the webview above it
@@ -240,31 +240,37 @@ static IMP WKOriginalImp;
             screen.size.height -= keyboardIntersection.size.height;
 
             // Change the content size as it creates a blank space in iOS 15 devices (works for all versions)
-            CGSize revisedSize = CGSizeMake(self.webView.scrollView.frame.size.width, self.webView.scrollView.frame.size.height - keyboard.size.height);
-            [UIView animateWithDuration:animationDuration animations:^{
-                self.webView.scrollView.contentSize = revisedSize;
-            }];
-        }
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(animationDuration * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                CGSize revisedSize = CGSizeMake(self.webView.scrollView.frame.size.width, self.webView.scrollView.frame.size.height - keyboard.size.height);
+                    self.webView.scrollView.contentSize = revisedSize;
+            });
+            }
 
-        // Fixes the iOS 15.5 black blank space above the keyboard and resets the webview correctly.
-        if(![self.deviceVersion isEqual:@"15.5"]) {
-            // Custom implementation to have the header and footer sticky
-            UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
-            [UIView animateWithDuration:animationDuration animations:^{
+            // Fixes the iOS 15.5 black blank space above the keyboard and resets the webview correctly.
+            if(![self.deviceVersion isEqual:@"15.5"]) {
+                // Custom implementation to have the header and footer sticky
+                UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(animationDuration * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                    self.webView.scrollView.contentInset = contentInsets;
+                    self.webView.scrollView.scrollIndicatorInsets = contentInsets;
+                });
+            }
+        } else {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.0 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                UIEdgeInsets contentInsets = UIEdgeInsetsZero;
                 self.webView.scrollView.contentInset = contentInsets;
                 self.webView.scrollView.scrollIndicatorInsets = contentInsets;
-            }];
+            });
         }
-    } else {
-        UIEdgeInsets contentInsets = UIEdgeInsetsZero;
-        [UIView animateWithDuration:animationDuration animations:^{
-            self.webView.scrollView.contentInset = contentInsets;
-            self.webView.scrollView.scrollIndicatorInsets = contentInsets;
-        }];
-    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(animationDuration * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+            // A view's frame is in its superview's coordinate system so we need to convert again
+            self.webView.frame = [self.webView.superview convertRect:screen fromView:self.webView];
 
-    // A view's frame is in its superview's coordinate system so we need to convert again
-    self.webView.frame = [self.webView.superview convertRect:screen fromView:self.webView];
+        if(!self.isInputInBottomSheet) {
+            CGSize revisedSize = CGSizeMake(self.webView.frame.size.width, self.webView.frame.size.height - keyboard.size.height);
+            self.webView.scrollView.contentSize = revisedSize;
+        }
+    });
 }
 
 #pragma mark UIScrollViewDelegate
@@ -339,6 +345,7 @@ static IMP WKOriginalImp;
     // since this is ARC, remove observers only
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
 
+    [nc removeObserver:self name:UIApplicationWillResignActiveNotification object:nil];
     [nc removeObserver:_keyboardShowObserver];
     [nc removeObserver:_keyboardHideObserver];
     [nc removeObserver:_keyboardWillShowObserver];
