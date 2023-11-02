@@ -280,9 +280,12 @@ static IMP WKOriginalImp;
     if (_shrinkView && _keyboardIsVisible) {
         CGFloat maxY = scrollView.contentSize.height - scrollView.bounds.size.height;
         if (scrollView.bounds.origin.y > maxY) {
-            scrollView.bounds = CGRectMake(scrollView.bounds.origin.x, maxY,
-                                           scrollView.bounds.size.width, scrollView.bounds.size.height);
+            scrollView.bounds = CGRectMake(scrollView.bounds.origin.x, 0, scrollView.bounds.size.width, scrollView.bounds.size.height);
         }
+        scrollView.frame = CGRectMake(scrollView.bounds.origin.x, 0, scrollView.bounds.size.width, scrollView.bounds.size.height);
+        scrollView.backgroundColor = UIColor.clearColor;
+        CGPoint bottomOffset = CGPointMake(0, 0);
+        [scrollView setContentOffset:bottomOffset animated:NO];
     }
 }
 
