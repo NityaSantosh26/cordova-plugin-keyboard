@@ -247,7 +247,7 @@ static IMP WKOriginalImp;
             }
 
             // Fixes the iOS 15.5 black blank space above the keyboard and resets the webview correctly.
-            if(![self.deviceVersion isEqual:@"15.5"]) {
+            if(![self.deviceVersion isEqual:@"15.5"] && ![self.deviceVersion isEqual:@"15.4"]) {
                 // Custom implementation to have the header and footer sticky
                 UIEdgeInsets contentInsets = UIEdgeInsetsMake(0.0, 0.0, keyboardIntersection.size.height, 0.0);
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(animationDuration * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
@@ -282,10 +282,6 @@ static IMP WKOriginalImp;
         if (scrollView.bounds.origin.y > maxY) {
             scrollView.bounds = CGRectMake(scrollView.bounds.origin.x, 0, scrollView.bounds.size.width, scrollView.bounds.size.height);
         }
-        scrollView.frame = CGRectMake(scrollView.bounds.origin.x, 0, scrollView.bounds.size.width, scrollView.bounds.size.height);
-        scrollView.backgroundColor = UIColor.clearColor;
-        CGPoint bottomOffset = CGPointMake(0, 0);
-        [scrollView setContentOffset:bottomOffset animated:NO];
     }
 }
 
