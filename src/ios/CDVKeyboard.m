@@ -36,6 +36,9 @@
 // Add a property to store the previous keyboard frame
 @property (nonatomic, readwrite, assign) CGRect previousKeyboardFrame;
 
+// Add a property to store the screen properties
+@property (nonatomic, readwrite, assign) CGRect deviceScreen;
+
 // Gets the device iOS version
 @property (nonatomic, readwrite, assign) NSString *deviceVersion;
 
@@ -59,6 +62,9 @@
 
     self.deviceVersion = [[UIDevice currentDevice] systemVersion];
     NSLog(@"Device Version: %@", self.deviceVersion);
+
+    // Setting device screen properties when app is launched
+    self.deviceScreen = [[UIScreen mainScreen] bounds];
 
     setting = @"HideKeyboardFormAccessoryBar";
     if ([self settingForKey:setting]) {
@@ -228,6 +234,11 @@ static IMP WKOriginalImp;
         self.previousKeyboardFrame = keyboard;
     }
 
+    // Reassigns the screen frame if it is positioned off the top-left corner of its superview.
+    if(screen.origin.x < 0 && screen.origin.y < 0 && !CGRectIsEmpty(self.deviceScreen)) {
+        screen = self.deviceScreen;
+    }
+
     CGFloat animationDuration = [notif.userInfo[UIKeyboardAnimationDurationUserInfoKey] floatValue];
     // Get the intersection of the keyboard and screen and move the webview above it
     // Note: we check for _shrinkView at this point instead of the beginning of the method to handle
@@ -257,6 +268,9 @@ static IMP WKOriginalImp;
             }
         } else {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.0 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                // Fixes device screen issues
+                self.deviceScreen = screen;
+                // Re-setting insets
                 UIEdgeInsets contentInsets = UIEdgeInsetsZero;
                 self.webView.scrollView.contentInset = contentInsets;
                 self.webView.scrollView.scrollIndicatorInsets = contentInsets;
