@@ -226,7 +226,7 @@ static IMP WKOriginalImp;
     bool keyboardSwitch = false;
 
     // Check if the keyboard frame has changed significantly (indicating a keyboard type change)
-    if (!CGRectIsNull(self.previousKeyboardFrame) && !CGRectEqualToRect(self.previousKeyboardFrame, CGRectZero) && fabs(CGRectGetHeight(self.previousKeyboardFrame) - CGRectGetHeight(keyboard)) > threshold) {
+    if (!CGRectIsNull(self.previousKeyboardFrame) && !CGRectEqualToRect(self.previousKeyboardFrame, CGRectZero) && fabs(CGRectGetHeight(self.previousKeyboardFrame) - CGRectGetHeight(keyboard)) > threshold && keyboard.origin.x > 0) {
         keyboardSwitch = true;
     }
 
@@ -247,6 +247,7 @@ static IMP WKOriginalImp;
     CGRect keyboardIntersection = CGRectIntersection(screen, keyboard);
     if (CGRectContainsRect(screen, keyboardIntersection) && !CGRectIsEmpty(keyboardIntersection) && _shrinkView && self.keyboardIsVisible && !keyboardSwitch) {
         if(!self.isInputInBottomSheet) {
+            self.deviceScreen = screen;
             self.webView.scrollView.scrollEnabled = !self.disableScrollingInShrinkView; // Order intentionally swapped.
             screen.size.height -= keyboardIntersection.size.height;
 
